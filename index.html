@@ -699,10 +699,7 @@
     </div>
 
     <script>
-        // =========================================================================
-        // ⚠️ ضع هنا إعدادات مشروع Firebase الجديد الخاص بـ "شبرا النملة" ⚠️
-        // =========================================================================
-                const firebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyCBJRuiYAStjaQKUjmGGGfytrpF8ESDFxk",
             authDomain: "shobra-51452.firebaseapp.com",
             projectId: "shubra-51452",
@@ -711,19 +708,8 @@
             appId: "1:246722438754:web:6be9fca735c329fe95d33b"
         };
 
-
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        
-        db.enablePersistence()
-          .catch(function(err) {
-              if (err.code == 'failed-precondition') {
-                  console.log("التخزين المحلي مفعل في تبويب آخر.");
-              } else if (err.code == 'unimplemented') {
-                  console.log("المتصفح لا يدعم التخزين المحلي.");
-              }
-          });
-
         const auth = firebase.auth();
 
         let patients = []; let purchases = []; let shortages = []; let appointments = [];
@@ -1658,28 +1644,39 @@
             showCustomConfirm("هل قمت بشراء هذه الخامات فعلاً وتريد إزالتها؟", () => { shortages.splice(index, 1); saveAndSyncSystemData(); renderShortages(); triggerAlert("تم إزالة العنصر من النواقص"); });
         }
 
-        async function loadDataFromFirebase() {
+        function loadDataFromFirebase() {
             if(!currentUserUid) return;
-            try {
-                const docRef = db.collection("shubra_clinic").doc("patients_" + currentUserUid);
-                const docSnap = await docRef.get();
-                if (docSnap.exists && docSnap.data().patientsList && docSnap.data().patientsList.length > 0) {
-                    patients = docSnap.data().patientsList;
-                    patients.forEach(p => {
-                        if (!p.visits) p.visits = [{ date: p.date, proc: p.proc, totalCost: p.totalCost, paidAmount: p.paidAmount }];
-                        if(!p.age) p.age = "-";
-                    });
-                }
-                const invRef = db.collection("shubra_clinic").doc("inventory_" + currentUserUid);
-                const invSnap = await invRef.get();
-                if(invSnap.exists) {
-                    purchases = invSnap.data().purchasesList || [];
-                    shortages = invSnap.data().shortagesList || [];
-                    appointments = invSnap.data().appointmentsList || [];
-                }
-                renderTable(); renderAllAccounts(); renderPurchases(); renderShortages(); renderAppointments();
-                showTab('add-patient', document.querySelectorAll('.mobile-nav-btn')[0]);
-            } catch(e) { console.error(e); triggerAlert("حدث خطأ في جلب بيانات السيرفر", "error"); }
+
+            db.collection("shubra_clinic").doc("patients_" + currentUserUid)
+              .onSnapshot((docSnap) => {
+                  if (docSnap.exists && docSnap.data().patientsList) {
+                      patients = docSnap.data().patientsList;
+                      patients.forEach(p => {
+                          if (!p.visits) p.visits = [{ date: p.date, proc: p.proc, totalCost: p.totalCost, paidAmount: p.paidAmount }];
+                          if (!p.age) p.age = "-";
+                      });
+                      renderTable(); 
+                      renderAllAccounts();
+                  }
+              }, (err) => {
+                  console.error("خطأ في جلب المرضى:", err);
+              });
+
+            db.collection("shubra_clinic").doc("inventory_" + currentUserUid)
+              .onSnapshot((invSnap) => {
+                  if (invSnap.exists) {
+                      purchases = invSnap.data().purchasesList || [];
+                      shortages = invSnap.data().shortagesList || [];
+                      appointments = invSnap.data().appointmentsList || [];
+                      renderPurchases(); 
+                      renderShortages(); 
+                      renderAppointments();
+                  }
+              }, (err) => {
+                  console.error("خطأ في جلب المخزون والمواعيد:", err);
+              });
+              
+            setTimeout(() => showTab('add-patient', document.querySelectorAll('.mobile-nav-btn')[0]), 500);
         }
         
         renderDentalChartUI();
